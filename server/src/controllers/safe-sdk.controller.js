@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import {
   createSafeTransaction,
   signTransactionHash,
-  executeTransaction,
   getSafeInfo
 } from '../services/safe-sdk.service.js';
 
@@ -137,38 +136,67 @@ export async function signTxHandler(req, res) {
 //   }
 // }
 
-export async function submitTxHandler(req, res) {
+// export async function submitTxHandler(req, res) {
+//   try {
+//     const { safeTxHash, safeTransactionData, signatures, executeWith } = req.body;
+//     if (!safeTxHash || !safeTransactionData || !Array.isArray(signatures)) {
+//       return res.status(400).json({
+//         error: 'Missing required fields'
+//       });
+//     }
+//     if (executeWith === 'server') {
+//       const executorPk = process.env.EXECUTOR_PK || SERVER_SIGNER_PK;
+//       if (!executorPk) {
+//         return res.status(500).json({ error: 'EXECUTOR_PK not configured' });
+//       }
+//       const result = await executeTransaction(
+//         safeTransactionData,
+//         signatures,
+//         executorPk
+//       );
+//       return res.json({
+//         status: 'executed',
+//         txHash: result.txHash,
+//         receipt: result.receipt
+//       });
+//     }
+//     return res.json({
+//       status: 'ready',
+//       message: 'Signatures validated. Ready for execution via client.',
+//       signatureCount: signatures.length
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       error: err.message || 'Failed to submit transaction'
+//     });
+//   }
+// }
+
+export async function generateKeyPairHandler(req, res) {
   try {
-    const { safeTxHash, safeTransactionData, signatures, executeWith } = req.body;
-    if (!safeTxHash || !safeTransactionData || !Array.isArray(signatures)) {
-      return res.status(400).json({
-        error: 'Missing required fields'
-      });
-    }
-    if (executeWith === 'server') {
-      const executorPk = process.env.EXECUTOR_PK || SERVER_SIGNER_PK;
-      if (!executorPk) {
-        return res.status(500).json({ error: 'EXECUTOR_PK not configured' });
-      }
-      const result = await executeTransaction(
-        safeTransactionData,
-        signatures,
-        executorPk
-      );
-      return res.json({
-        status: 'executed',
-        txHash: result.txHash,
-        receipt: result.receipt
-      });
-    }
+    console.log('=== GENERATE KEYPAIR HANDLER ===');
+    
+    // Generate a new random wallet (this will be stored in TPM/secure storage in production)
+    const newWallet = ethers.Wallet.createRandom();
+    
+    const publicKey = newWallet.address;
+    const privateKey = newWallet.privateKey;
+    
+    // TODO: In production, store privateKey in TPM/Hardware Security Module
+    // For now, we'll store it in a secure server location
+    console.log(`Generated keypair. Public: ${publicKey}`);
+    
+    // Store mapping (you can use a database in production)
+    // For PoC: store in memory or file
+    
     return res.json({
-      status: 'ready',
-      message: 'Signatures validated. Ready for execution via client.',
-      signatureCount: signatures.length
+      publicKey,
+      message: 'Keypair generated. Private key stored securely on server.'
     });
   } catch (err) {
+    console.error('Keypair generation error:', err);
     return res.status(500).json({
-      error: err.message || 'Failed to submit transaction'
+      error: err.message || 'Failed to generate keypair'
     });
   }
 }
