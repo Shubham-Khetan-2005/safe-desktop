@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchSafeOverviewData, fetchRecentActivity, fetchTxLifecycleData } from "../services/hyperindex.service";
 import Modal from "../components/Modal";
 
-export default function Dashboard({ safeAddress="0x601778F8fa32298E826a8aBEf1E3b31515626845", chainId = 11155111 }) {
+export default function Dashboard({ safeAddress, chainId = 11155111 }) {
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +20,9 @@ export default function Dashboard({ safeAddress="0x601778F8fa32298E826a8aBEf1E3b
   const [activityData, setActivityData] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
 
+  if (!safeAddress) {
+    return <div style={styles.loading}>No safe address specified.</div>;
+  }
   useEffect(() => {
     async function load() {
       setLoading(true);

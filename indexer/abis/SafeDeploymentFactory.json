@@ -1,0 +1,99 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_proxyFactory",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_safeSingleton",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safeAddress",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "owners",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "threshold",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "SafeDeployed",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "owners",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "threshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "deploySafe",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyFactory",
+    "outputs": [
+      {
+        "internalType": "contract IGnosisSafeProxyFactory",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "safeSingleton",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

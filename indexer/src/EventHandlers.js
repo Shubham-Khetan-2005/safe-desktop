@@ -2,8 +2,23 @@
  * Please refer to https://docs.envio.dev for a thorough guide on all Envio indexer features
  */
 const {
- Safe,
+ Safe,SafeDeploymentFactory
 } = require("../generated");
+
+SafeDeploymentFactory.SafeDeployed.handler(async ({ event, context }) => {
+  const safeAddress = event.params.safeAddress.toLowerCase();
+  const startBlock = event.block.number;
+
+  context.log.info(`[Dynamic Registration] New Safe deployed at ${safeAddress}`);
+
+  // Dynamically register the new Safe contract for indexing
+  context.contractRegistration.add({
+    name: "Safe",        // Name as defined in config.yaml
+    abi: "Safe",         // ABI identifier as in your config
+    address: safeAddress,
+    startBlock: startBlock,
+  });
+});
 
 Safe.AddedOwner.handler(async ({event, context}) => {
   const entity = {
