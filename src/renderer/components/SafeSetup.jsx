@@ -149,13 +149,13 @@ export default function SafeSetup({ onNavigate }) {
       const wallet = new ethers.Wallet(keyPairs.key1.privateKey, new ethers.providers.JsonRpcProvider(RPC_URL));
       const deploymentTx = await protocolKit.createSafeDeploymentTransaction();
       const balance = await wallet.getBalance();
-      if (balance.isZero()) {
+      if (balance.isZero() || balance.lt(estimatedTotalCost)) {
         const faucetLinks = `
           • Alchemy Sepolia Faucet: https://sepoliafaucet.com/
           • Sepolia PoW Faucet: https://sepolia-faucet.pk910.de/
           • Infura Sepolia Faucet: https://faucet.sepolia.dev/
         `;
-        throw new Error(`Account ${wallet.address} has no ETH. Please fund this address with some Sepolia ETH first.\n\nYou can get test ETH from these faucets:\n${faucetLinks}`);
+        throw new Error(`Account ${wallet.address} has insufficient ETH to deploy the Safe.\n\nYou need at least ${ethers.utils.formatEther(estimatedTotalCost)} ETH (estimated) for deployment.\n\nCurrent balance: ${ethers.utils.formatEther(balance)} ETH.\n\nPlease fund this address with Sepolia ETH first.\n\nYou can get test ETH from these faucets:\n${faucetLinks}`);
       }
 
       const txResponse = await wallet.sendTransaction({

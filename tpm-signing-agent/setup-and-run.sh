@@ -9,7 +9,7 @@ set -e  # Exit on any error
 DEFAULT_PORT="8080"
 KEY_DIR="./keys"
 SERVER_BINARY="./tpm-signing-server"
-KEY_GENERATOR_BINARY="./        sudo ./${SERVER_BINARY} -tmp-handle "$handle" -port "$port" > "$LOG_FILE" 2>&1 &ey-generator"
+KEY_GENERATOR_BINARY="./key-generator"
 LOG_FILE="./tmp-server.log"
 HANDLE_START=$((0x81010002))
 
