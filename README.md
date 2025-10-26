@@ -1,6 +1,3 @@
-
-
-
 # Safe Desktop: 2-of-3 Multisig Wallet
 
 ## What is this project?
@@ -9,7 +6,8 @@
 
 Each transaction requires **2-of-3 signatures**, one of which is produced by your laptop’s **Trusted Platform Module (TPM)** — meaning even if private keys leak, **transactions can only be executed from your physical device**.
 
-Envio’s **HyperIndex** powers real-time event tracking, while **Dynamic Contracts** enable flexible Safe deployments and ownership rotation **without redeploying contracts**.
+Envio’s **HyperIndex** powers real-time event tracking, while **Dynamic Contracts** enable flexible Safe deployments and ownership rotation **without redeploying contracts**. Further details about Envio can be found at `indexer/README.md`. You can find more of our project here: [PPT](https://www.canva.com/design/DAGRcBeQffY/tw_6S0cgtlL65YDS26bPdA/edit?utm_content=DAGRcBeQffY), [video demo](https://youtu.be/YCZ7r44aPzU)
+
 
 ---
 
