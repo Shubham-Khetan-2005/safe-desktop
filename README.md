@@ -7,13 +7,16 @@
 
 **Safe Desktop** is a multisig wallet that combines **user-friendly UX** with **hardware-grade security**.
 
-Each transaction requires **2-of-3 signatures**, one of which is generated securely by your laptop’s **Trusted Platform Module (TPM)** — ensuring that even if private keys are leaked, the device itself remains secure.
+Each transaction requires **2-of-3 signatures**, one of which is produced by your laptop’s **Trusted Platform Module (TPM)** — meaning even if private keys leak, **transactions can only be executed from your physical device**.
 
-Envio’s **Dynamic Contracts** enable flexible on-chain logic for multisig authorization, session rules, and dynamic ownership without manual redeployment.
+Envio’s **HyperIndex** powers real-time event tracking, while **Dynamic Contracts** enable flexible Safe deployments and ownership rotation **without redeploying contracts**.
 
 ---
 
-
+## Releases:
+Currently, we support Linux and Windows, with Mac release in the near future.
+Download the latest executables here:
+[executables](https://drive.google.com/drive/folders/1LQIZBFXmstUoh1MJsLxvrBUqHAKhl8c6?usp=sharing )
 
 ## Why does this project exist?
 
@@ -30,6 +33,7 @@ Multisig wallets are a critical building block for secure digital asset manageme
 - Maximizing usability with auto-funding and modern UI
 
 ---
+
 ## Repository Structure
 ```
 root/
@@ -90,7 +94,18 @@ root/
 - Hosted link for Dynamic Contract: https://indexer.dev.hyperindex.xyz/8ac8f29/v1/graphql
 - Hosted link for example static Contract: https://indexer.dev.hyperindex.xyz/98cbc95/v1/graphql (Safe address: https://sepolia.etherscan.io/address/0x601778f8fa32298e826a8abef1e3b31515626845) 
 ---
+## Architecure
+<img width="2371" height="2101" alt="Architecture (1)" src="https://github.com/user-attachments/assets/b9911394-b055-42b2-9634-7e605e242e05" />
 
+
+- **SafeSetup.jsx**: Handles key generation, TPM key fetch, Safe deployment, and auto-funding logic.
+- **TxComposer.jsx**: UI for composing, signing, and sending Safe transactions.
+- **KeyGenerator.jsx**: UI for generating and displaying key pairs.
+- **SafeContext.jsx**: React context for Safe state (keys, addresses, etc).
+- **App.jsx**: Main app shell and navigation.
+- **Dashboard.jsx, HyperIndexPage.jsx, TxLifecycle.jsx**: Pages for activity, indexing, and transaction lifecycle.
+- **server/**: Backend for Safe SDK and signature utilities.
+- **tpm-signing-agent/**: TPM server and Go code for secure key management.
 
 ## How do I use it?
 
@@ -118,19 +133,6 @@ root/
 	# or
 	pnpm dev
 	```
-
----
-
-## Architecture & File/Component Overview
-
-- **SafeSetup.jsx**: Handles key generation, TPM key fetch, Safe deployment, and auto-funding logic.
-- **TxComposer.jsx**: UI for composing, signing, and sending Safe transactions.
-- **KeyGenerator.jsx**: UI for generating and displaying key pairs.
-- **SafeContext.jsx**: React context for Safe state (keys, addresses, etc).
-- **App.jsx**: Main app shell and navigation.
-- **Dashboard.jsx, HyperIndexPage.jsx, TxLifecycle.jsx**: Pages for activity, indexing, and transaction lifecycle.
-- **server/**: Backend for Safe SDK and signature utilities.
-- **tpm-signing-agent/**: TPM server and Go code for secure key management.
 
 ---
 
