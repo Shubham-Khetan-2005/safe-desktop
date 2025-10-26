@@ -3,26 +3,49 @@ import Safe from "@safe-global/protocol-kit";
 
 // Environment variables
 const RPC_URL = import.meta.env.VITE_RPC_URL;
-const SAFE_ADDRESS = import.meta.env.VITE_SAFE_ADDRESS;
 const CHAIN_ID = BigInt(import.meta.env.VITE_CHAIN_ID || 11155111);
 
-// Private keys for signing
-const OWNER1_PK = import.meta.env.VITE_OWNER1_PK;  // First owner key
-const OWNER2_PK = import.meta.env.VITE_OWNER2_PK;  // Second owner key
-const EXECUTOR_PK = import.meta.env.VITE_WALLET_A_PK;  // Executor key
+// State to be set from UI
+let SAFE_ADDRESS = null;
+
+// Keys will be passed in from the UI
+let ownerKeys = {
+  owner1: null,
+  owner2: null,
+  server: null
+};
+
+export function setKeys(owner1, owner2, server) {
+  ownerKeys = {
+    owner1: owner1,
+    owner2: owner2,
+    server: server
+  };
+}
+
+export function setSafeAddress(address) {
+  SAFE_ADDRESS = address;
+}
 
 // Validation
-if (!RPC_URL || !SAFE_ADDRESS) {
-  throw new Error("RPC_URL and SAFE_ADDRESS must be set in .env");
+if (!RPC_URL) {
+  throw new Error("RPC_URL must be set in .env");
 }
 
 /**
  * Initialize Safe Protocol Kit with a signer
  */
 async function initSafeKit(signerPk) {
+  if (!SAFE_ADDRESS) {
+    throw new Error("Safe address not set");
+  }
+  if (!ownerKeys.owner1) {
+    throw new Error("Owner1 key not set");
+  }
+
   const protocolKit = await Safe.init({
     provider: RPC_URL,
-    signer: signerPk,
+    signer: signerPk || ownerKeys.owner1,
     safeAddress: SAFE_ADDRESS,
     chainId: CHAIN_ID,
   });
@@ -33,7 +56,8 @@ async function initSafeKit(signerPk) {
  * Get Safe information directly from the blockchain
  */
 export async function getSafeInfo() {
-  const protocolKit = await initSafeKit(OWNER1_PK);
+  // Use owner1 key from the stored keys
+  const protocolKit = await initSafeKit(ownerKeys.owner1);
 
   const [address, nonce, threshold, owners, isDeployed] = await Promise.all([
     protocolKit.getAddress(),
@@ -56,7 +80,7 @@ export async function getSafeInfo() {
  * Create a new Safe transaction
  */
 export async function createSafeTx({ to, value = "0", data = "0x" }) {
-  const protocolKit = await initSafeKit(OWNER1_PK);
+  const protocolKit = await initSafeKit(ownerKeys.owner1);
 
   const safeTransaction = await protocolKit.createTransaction({
     transactions: [
@@ -96,14 +120,12 @@ export async function getOwner2Signature(safeTxHash) {
   console.log('=== OWNER2 SIGNING DEBUG ===');
   console.log('SafeTxHash to sign:', safeTxHash);
   
-  if (!OWNER2_PK) {
-    throw new Error(
-      "OWNER2_PK not configured. Set VITE_OWNER2_PK in .env"
-    );
+  if (!ownerKeys.owner2) {
+    throw new Error("Owner2 key not set");
   }
   
   // Verify the signer address before signing
-  const signerWallet = new ethers.Wallet(OWNER2_PK);
+  const signerWallet = new ethers.Wallet(ownerKeys.owner2);
   console.log('OWNER2 address:', signerWallet.address);
   
   // Debug: Let's verify the private key directly
@@ -178,7 +200,7 @@ export async function getOwner2Signature(safeTxHash) {
   console.log('Trying Safe SDK as fallback...');
   const protocolKit = await Safe.init({
     provider: RPC_URL,
-    signer: OWNER1_PK,
+    signer: ownerKeys.owner1,
     safeAddress: SAFE_ADDRESS,
     chainId: CHAIN_ID,
   });
@@ -203,11 +225,11 @@ export async function getOwner2Signature(safeTxHash) {
  * Get signature from first owner (previously server signature)
  */
 export async function getOwner1Signature(safeTxHash) {
-  if (!OWNER1_PK) {
-    throw new Error("OWNER1_PK not configured. Set VITE_OWNER1_PK in .env");
+  if (!ownerKeys.owner1) {
+    throw new Error("Owner1 key not set");
   }
 
-  const signerWallet = new ethers.Wallet(OWNER1_PK);
+  const signerWallet = new ethers.Wallet(ownerKeys.owner1);
   console.log("OWNER1 signer address:", signerWallet.address);
   
   try {
@@ -226,7 +248,7 @@ export async function getOwner1Signature(safeTxHash) {
   }
   
   // Fallback to Safe SDK
-  const protocolKit = await initSafeKit(OWNER1_PK);
+  const protocolKit = await initSafeKit(ownerKeys.owner1);
   const signature = await protocolKit.signHash(safeTxHash);
   return normalizeSignature(signature);
 }
@@ -267,9 +289,10 @@ export async function getOwner1Signature(safeTxHash) {
 // }
 
 export async function exeTxn(safeTransactionData, signatures, safeTxHash) {
-  const executorPk = EXECUTOR_PK;
-  if (!executorPk)
-    throw new Error("executorPk is required for direct client execution");
+  if (!ownerKeys.owner1) {
+    throw new Error("Owner1 key is required for execution");
+  }
+  const executorPk = ownerKeys.owner1;
 
   const protocolKit = await Safe.init({
     provider: RPC_URL,
@@ -439,16 +462,16 @@ export async function exeTxn(safeTransactionData, signatures, safeTxHash) {
   
   // Debug: Check what addresses our configured keys correspond to
   console.log("=== CONFIGURED SIGNER ADDRESSES ===");
-  if (OWNER2_PK) {
-    const owner2Wallet = new ethers.Wallet(OWNER2_PK);
-    console.log("OWNER2_PK corresponds to address:", owner2Wallet.address);
-    console.log("Is OWNER2 a Safe owner?", safeOwners.includes(owner2Wallet.address));
+  if (ownerKeys.owner2) {
+    const owner2Wallet = new ethers.Wallet(ownerKeys.owner2);
+    console.log("Owner2 corresponds to address:", owner2Wallet.address);
+    console.log("Is Owner2 a Safe owner?", safeOwners.includes(owner2Wallet.address));
   }
   
-  if (EXECUTOR_PK) {
-    const executorWallet = new ethers.Wallet(EXECUTOR_PK);
-    console.log("EXECUTOR_PK corresponds to address:", executorWallet.address);
-    console.log("Is EXECUTOR a Safe owner?", safeOwners.includes(executorWallet.address));
+  if (ownerKeys.owner1) {
+    const owner1Wallet = new ethers.Wallet(ownerKeys.owner1);
+    console.log("Owner1 corresponds to address:", owner1Wallet.address);
+    console.log("Is Owner1 a Safe owner?", safeOwners.includes(owner1Wallet.address));
   }
   
   // Also check if we can verify the expected addresses from .env comments
@@ -456,16 +479,9 @@ export async function exeTxn(safeTransactionData, signatures, safeTxHash) {
   console.log("Expected VITE_OWNER2_PK address: 0x4E6B9987750F8a1513B67F5bD3FcE12A040c4114");
   console.log("Expected OWNER1_PK address: 0x4Bd0053ab48e56A5f52454B92cA14320167F2aF9");
   
-  // Quick verification of what the configured keys actually resolve to
-  try {
-    const expectedOwner2Wallet = new ethers.Wallet("0x8791e418fcd1a6a91484bf60a1c6c6176d1da8128d7642a9e5613c2e314e2046");
-    console.log("VITE_OWNER2_PK actually resolves to:", expectedOwner2Wallet.address);
-    
-    const expectedOwner1Wallet = new ethers.Wallet("0x1ffec8e3162d7814d54850237996ad4c5c109216915d3ccff80efd02d48cf3aa");
-    console.log("OWNER1_PK actually resolves to:", expectedOwner1Wallet.address);
-  } catch (e) {
-    console.log("Error verifying expected addresses:", e.message);
-  }
+  // Log the configured keys for debugging
+  console.log("Using Owner1 key:", ownerKeys.owner1 ? "Set" : "Not set");
+  console.log("Using Owner2 key:", ownerKeys.owner2 ? "Set" : "Not set");
   
   // Check Safe balance
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
@@ -526,10 +542,10 @@ function normalizeSignature(sig) {
 }
 
 export function getOwner2Address() {
-  if (!OWNER2_PK) {
+  if (!ownerKeys.owner2) {
     return "Not configured";
   }
-  const wallet = new ethers.Wallet(OWNER2_PK);
+  const wallet = new ethers.Wallet(ownerKeys.owner2);
   return wallet.address;
 }
 

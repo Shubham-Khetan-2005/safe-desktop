@@ -1,4 +1,5 @@
-export const HYPERINDEX_URL = "http://localhost:8080/v1/graphql"; // Change if needed
+export const HYPERINDEX_URL = "https://indexer.dev.hyperindex.xyz/1fed960/v1/graphql"; // Change if needed
+
 
 async function gql(query, variables = {}) {
   const res = await fetch(HYPERINDEX_URL, {

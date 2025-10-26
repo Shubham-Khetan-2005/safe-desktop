@@ -84,6 +84,8 @@ try {
 
 
 
+    updateContractAddress: (address) => ipcRenderer.send('update-contract-address', address),
+    onUpdateSuccess: (callback) => ipcRenderer.on('update-success', (event, success) => callback(success)),
 
 
 

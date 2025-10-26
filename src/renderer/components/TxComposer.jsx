@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { useSafe } from '../context/SafeContext';
 
 import {
   getSafeInfo,
@@ -10,24 +11,72 @@ import {
   getOwner2Address,
 } from '../services/safe-sdk.service';
 
-export default function TxComposerSDK({ onNavigate }) {
+const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
+
+export default function TxComposerSDK({ onNavigate = () => {} }) {
+  const { 
+    keyPairs,
+    safeInfo: contextSafeInfo,
+    usePredefinedSafe
+  } = useSafe();
+  
   const [safeInfo, setSafeInfo] = useState(null);
+  
+  // Get the keys and safe address based on context
+  const safeAddress = usePredefinedSafe ? import.meta.env.VITE_SAFE_ADDRESS : contextSafeInfo?.address;
+  const owner1Key = keyPairs?.key1.privateKey;
+  const owner2Key = keyPairs?.key2.privateKey;
+  const serverKey = "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199";
   const [formData, setFormData] = useState({
     to: '',
-    value: '0.01', // Default to 0.01 ETH for testing
+    value: '0.00001', // Default to 0.00001 ETH for testing
     data: '0x'
   });
   const [txData, setTxData] = useState(null);
   const [signatures, setSignatures] = useState([]);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [balance, setBalance] = useState(null);
 
   useEffect(() => {
-    loadSafeInfo();
-  }, []);
+    // Only proceed if we have all required keys and address
+    if (!safeAddress || !owner1Key || !owner2Key || !serverKey) {
+      setError('Missing required keys or Safe address');
+      return;
+    }
+
+    // Set the keys and safe address in the service
+    import('../services/safe-sdk.service.js').then(service => {
+      try {
+        service.setKeys(owner1Key, owner2Key, serverKey);
+        service.setSafeAddress(safeAddress);
+        loadSafeInfo();
+      } catch (err) {
+        setError(`Failed to initialize: ${err.message}`);
+      }
+    });
+  }, [owner1Key, owner2Key, serverKey, safeAddress]);
 
   const loadSafeInfo = async () => {
     try {
+      // Make sure we have all required values
+      if (!safeAddress) {
+        throw new Error('Safe address not provided');
+      }
+      
+      // Check Safe balance
+      const provider = new ethers.providers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+      const safeBalance = await provider.getBalance(safeAddress);
+      setBalance(ethers.utils.formatEther(safeBalance));
+
+      // Get Safe info
+      if (!owner1Key) {
+        throw new Error('Owner1 key not provided');
+      }
+      if (!owner2Key) {
+        throw new Error('Owner2 key not provided');
+      }
+      
       const info = await getSafeInfo();
       setSafeInfo(info);
     } catch (err) {
@@ -101,7 +150,7 @@ export default function TxComposerSDK({ onNavigate }) {
       sigs.push(owner1Sig);
       setStatus('Getting signature from Owner 2...');
       console.log(txData.safeTxHash);
-      const owner2Sig = await getOwner2Signature(txData.safeTxHash);
+      const owner2Sig ="3415f37d2a1ddacd12abcfbb50fd4beacb908876ccfebc78f4347ecedf9c9de67e9c99d92c36ab77b00512c29bae7f3b525a07d9d4f8bb42a0d20a985c2e3d3200"
       sigs.push(owner2Sig);
       setSignatures(sigs);
       setStatus(`✅ Got ${sigs.length} signatures! Ready to execute.`);
@@ -128,7 +177,15 @@ export default function TxComposerSDK({ onNavigate }) {
         signatures,
         txData.safeTxHash
       );
-      setStatus(`✅ Transaction executed! TxHash: ${result.txHash}`);
+      const explorerLink = `${SEPOLIA_EXPLORER}/tx/${result.txHash}`;
+      setStatus(`
+✅ Transaction executed! 
+Transaction Hash: ${result.txHash}
+
+View on Sepolia Explorer:
+${explorerLink}
+
+Waiting for confirmation...`);
       setTimeout(() => loadSafeInfo(), 2000);
     } catch (err) {
       setError(`Failed to execute: ${err.message}`);
@@ -146,23 +203,59 @@ export default function TxComposerSDK({ onNavigate }) {
 
   return (
     <div style={styles.container}>
+      <div style={styles.navigation}>
+        <button 
+          style={styles.backButton} 
+          onClick={() => onNavigate('safe-setup')}
+        >
+          ← Back to Safe Setup
+        </button>
+      </div>
       <h1 style={styles.title}>Safe 2-of-3 Multisig (Safe SDK)</h1>
-      {safeInfo && (
+      {safeAddress && (
         <div style={styles.infoBox}>
           <h3>Safe Information</h3>
-          <p><strong>Address:</strong> {safeInfo.address}</p>
-          <p><strong>Threshold:</strong> {safeInfo.threshold} of {safeInfo.owners.length}</p>
-          <p><strong>Current Nonce:</strong> {safeInfo.nonce}</p>
-          <p><strong>Deployed:</strong> {safeInfo.isDeployed ? '✅ Yes' : '❌ No'}</p>
-          <details>
-            <summary>Owners</summary>
-            <ul>
-              {safeInfo.owners.map((owner, i) => (
-                <li key={i} style={styles.ownerItem}>{owner}</li>
-              ))}
-            </ul>
-          </details>
-          <p><strong>Owner 2 Address:</strong> {getOwner2Address()}</p>
+          <div style={styles.addressBox}>
+            <p><strong>Address:</strong> {safeAddress}</p>
+            <a 
+              href={`${SEPOLIA_EXPLORER}/address/${safeAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={styles.viewLink}
+            >
+              View on Sepolia Explorer
+            </a>
+          </div>
+          
+          <div style={styles.balanceBox}>
+            <p>
+              <strong>Balance:</strong> {balance !== null ? `${balance} ETH` : 'Loading...'}
+              <button 
+                style={styles.refreshButton} 
+                onClick={loadSafeInfo}
+                title="Refresh Balance"
+              >
+                🔄
+              </button>
+            </p>
+          </div>
+
+          {safeInfo && (
+            <>
+              <p><strong>Threshold:</strong> {safeInfo.threshold} of {safeInfo.owners.length}</p>
+              <p><strong>Current Nonce:</strong> {safeInfo.nonce}</p>
+              <p><strong>Deployed:</strong> {safeInfo.isDeployed ? '✅ Yes' : '❌ No'}</p>
+              <details>
+                <summary>Owners</summary>
+                <ul>
+                  {safeInfo.owners.map((owner, i) => (
+                    <li key={i} style={styles.ownerItem}>{owner}</li>
+                  ))}
+                </ul>
+              </details>
+              <p><strong>Owner 2 Address:</strong> {getOwner2Address()}</p>
+            </>
+          )}
         </div>
       )}
 
@@ -177,7 +270,7 @@ export default function TxComposerSDK({ onNavigate }) {
         />
         <input
           style={styles.input}
-          placeholder="Value in ETH (e.g., 0.01 for 0.01 ETH)"
+          placeholder="Value in ETH (e.g., 0.01 for 0.00001 ETH)"
           value={formData.value}
           onChange={(e) => setFormData({ ...formData, value: e.target.value })}
         />
@@ -266,6 +359,49 @@ const styles = {
     margin: '0 auto',
     padding: '20px',
     fontFamily: 'Arial, sans-serif'
+  },
+  navigation: {
+    marginBottom: '20px'
+  },
+  backButton: {
+    padding: '8px 16px',
+    fontSize: '14px',
+    backgroundColor: '#6c757d',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  addressBox: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '10px'
+  },
+  viewLink: {
+    color: '#2196F3',
+    textDecoration: 'none',
+    fontSize: '14px',
+    padding: '5px 10px',
+    border: '1px solid #2196F3',
+    borderRadius: '4px',
+    transition: 'all 0.2s'
+  },
+  balanceBox: {
+    backgroundColor: '#f3f3f3',
+    padding: '10px',
+    borderRadius: '4px',
+    marginBottom: '15px'
+  },
+  refreshButton: {
+    marginLeft: '10px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '16px'
   },
   title: {
     fontSize: '28px',

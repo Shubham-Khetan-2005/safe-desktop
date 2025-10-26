@@ -1,4 +1,5 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow,ipcMain } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import url from 'url'
 
@@ -27,6 +28,38 @@ function createWindow() {
   }
 }
 
+ipcMain.handle('save-safe-address', async (event, address) => {
+  try {
+    const filePath = path.join(process.cwd(), 'safeAddress.txt');
+    fs.writeFileSync(filePath, address, 'utf8');
+    console.log('✅ Safe address saved to:', filePath);
+    return { success: true, filePath };
+  } catch (err) {
+    console.error('❌ Error writing safe address file:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('update-contract-address', async (event, address) => {
+  try {
+    const configPath = path.join(process.cwd(), 'indexer', 'config.yaml');
+    let config = fs.readFileSync(configPath, 'utf8');
+
+    // Replace any existing address line in the config
+    config = config.replace(
+      /address:\s*\[([^\]]*)\]/,
+      `address:\n    - ${address}`
+    );
+
+    fs.writeFileSync(configPath, config, 'utf8');
+    console.log('✅ Contract address updated in config.yaml:', address);
+    return { success: true };
+  }
+  catch (err) {
+    console.error('❌ Error updating config.yaml:', err);
+    return { success: false, error: err.message };
+  }
+});
 app.whenReady().then(createWindow)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

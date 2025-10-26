@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from "react";
-import SafeSetup from "./components/SafeSetup.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
-import HyperIndexPage from "./pages/HyperIndexPage.jsx";
-import TxLifecycle from "./pages/TxLifecycle.jsx";
+import React, { useState } from "react";
+import TxComposer from "./components/TxComposer";
+import StatusPanel from "./components/StatusPanel";
+import HyperIndexPage from "./pages/HyperIndexPage";
+import Dashboard from "./pages/Dashboard";
+import TxLifecycle from "./pages/TxLifecycle";
+import SafeSetup from './components/SafeSetup.jsx';
+import KeyGenerator from './components/KeyGenerator.jsx';
+import { SafeProvider } from './context/SafeContext';
+
 
 export default function App() {
   const [safeAddress, setSafeAddress] = useState(
@@ -33,8 +38,10 @@ export default function App() {
   };
 
   return (
-    <div className="app">
-      <header className="header">
+    <SafeProvider>
+      <div className="app">
+        {/* <header className="header">Safe Desktop — PoC</header> */}
+        <header className="header">
         Safe Desktop — PoC
         <nav style={{ marginLeft: "20px" }}>
           <button
@@ -95,5 +102,6 @@ export default function App() {
         {renderPage()}
       </main>
     </div>
+    </SafeProvider>
   );
 }

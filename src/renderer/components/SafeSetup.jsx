@@ -2,18 +2,21 @@ import React, { useState } from "react";
 import { ethers } from "ethers";
 import Safe from "@safe-global/protocol-kit";
 import TxComposerSDK from "./TxComposer.jsx";
+import { useSafe } from '../context/SafeContext';
 
 const RPC_URL = import.meta.env.VITE_RPC_URL;
 const CHAIN_ID = BigInt(import.meta.env.VITE_CHAIN_ID || 11155111);
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = 'http://localhost:3000';
 
-export default function SafeSetup({ onSafeDeployed }) {
+export default function SafeSetup() {
   const [keyPairs, setKeyPairs] = useState(null);
   const [serverPublicKey, setServerPublicKey] = useState(null);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-  const [safeInfo, setSafeInfo] = useState(null);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [safeAddress, setSafeAddress] = useState(null);
+  const [safeInfo, setSafeInfo] = useState(null); // { address, privateKey }
   const [showComposer, setShowComposer] = useState(false);
+  const [checkedBalance, setCheckedBalance] = useState(false);
 
   const saveKeyAndAddressToFile = (privateKey, safeAddress) => {
     try {
@@ -83,7 +86,8 @@ const saveSafeAddressToFile = async (address) => {
 
   const handleGetServerPublicKey = () => {
     try {
-      const hardcodedServerKey = "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199";
+      setError('');
+      const hardcodedServerKey = "0xAB077537DbC54088b6c2Da1a838300Bb8152165E";  // This is a hardcoded key for testing
       setServerPublicKey(hardcodedServerKey);
       setStatus(`✅ Server public key: ${hardcodedServerKey}`);
       setError("");
@@ -119,12 +123,41 @@ const saveSafeAddressToFile = async (address) => {
       });
 
       const predictedAddress = await protocolKit.getAddress();
+      
+      // Create a wallet from the private key for deployment
+      const wallet = new ethers.Wallet(keyPairs.key1.privateKey, new ethers.providers.JsonRpcProvider(RPC_URL));
+      
+      // Create and send the deployment transaction
+      const deploymentTx = await protocolKit.createSafeDeploymentTransaction();
+      
+      // Check wallet balance
+      const balance = await wallet.getBalance();
+      console.log('Wallet balance:', ethers.utils.formatEther(balance), 'ETH');
+      
+      if (balance.isZero()) {
+        const faucetLinks = `
+          • Alchemy Sepolia Faucet: https://sepoliafaucet.com/
+          • Sepolia PoW Faucet: https://sepolia-faucet.pk910.de/
+          • Infura Sepolia Faucet: https://faucet.sepolia.dev/
+        `;
+        throw new Error(`Account ${wallet.address} has no ETH. Please fund this address with some Sepolia ETH first.\n\nYou can get test ETH from these faucets:\n${faucetLinks}`);
+      }
 
-      saveSafeAddressToFile(predictedAddress);
-      const newSafeInfo = {
-        address: predictedAddress,
-        privateKey: keyPairs.key1.privateKey,
-      };
+      // Set manual gas limit and higher gas price for Sepolia
+      const txResponse = await wallet.sendTransaction({
+        to: deploymentTx.to,
+        data: deploymentTx.data,
+        value: deploymentTx.value || '0',
+        gasLimit: 1000000, // Manual gas limit
+        maxFeePerGas: ethers.utils.parseUnits('20', 'gwei'), // Higher gas price
+        maxPriorityFeePerGas: ethers.utils.parseUnits('2', 'gwei'),
+        type: 2 // EIP-1559 transaction
+      });
+      
+      setStatus('⏳ Waiting for deployment transaction to be mined...');
+      await txResponse.wait();
+
+      const newSafeInfo = { address: predictedAddress, privateKey: keyPairs.key1.privateKey };
       setSafeInfo(newSafeInfo);
 
       // 🔹 Send Safe address to Electron main (update config.yaml)
@@ -155,18 +188,95 @@ const saveSafeAddressToFile = async (address) => {
     }
   };
 
-  if (showComposer && safeInfo) {
+  // Already defined later in the code
+
+  if (showComposer && (safeInfo || (usePredefinedSafe && PREDEFINED_SAFE))) {
+    const safeToUse = usePredefinedSafe ? PREDEFINED_SAFE : safeInfo.address;
+    // Use generated keys if available, otherwise empty strings
+    const owner1KeyToUse = keyPairs?.key1?.privateKey || '';
+    const owner2KeyToUse = keyPairs?.key2?.privateKey || '';
     return (
       <TxComposerSDK
-        safeAddress={safeInfo.address}
-        privateKey={safeInfo.privateKey}
+        safeAddress={safeToUse}
+        owner1Key={owner1KeyToUse}
+        owner2Key={owner2KeyToUse}
+        serverKey={"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199"}
+        onNavigate={(page) => {
+          if (page === 'safe-setup') {
+            setShowComposer(false);
+          }
+        }}
       />
     );
   }
 
+  const checkBalance = async () => {
+    if (!keyPairs) {
+      setError('Please generate keys first');
+      return;
+    }
+
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+      const balance = await provider.getBalance(keyPairs.key1.address);
+      const balanceInEth = ethers.utils.formatEther(balance);
+      setCheckedBalance(true);
+      
+      if (balance.isZero()) {
+        setStatus(`Current balance: ${balanceInEth} ETH\nYou need Sepolia ETH to deploy a Safe. Click "Get Test ETH" to visit faucets.`);
+      } else {
+        setStatus(`Current balance: ${balanceInEth} ETH\nYou have enough ETH to proceed!`);
+      }
+    } catch (err) {
+      setError('Failed to check balance: ' + err.message);
+    }
+  };
+
+  const handleGetTestEth = () => {
+    if (!keyPairs) {
+      setError('Please generate keys first');
+      return;
+    }
+    
+    const faucets = [
+      `https://sepoliafaucet.com/`,
+      `https://sepolia-faucet.pk910.de/`,
+      `https://faucet.sepolia.dev/`
+    ];
+    
+    setStatus(`
+Opening Sepolia faucets in new tabs. 
+Your address to fund: ${keyPairs.key1.address}
+
+1. Copy your address above
+2. Visit each faucet
+3. Request test ETH
+4. Wait a few minutes
+5. Click "Check Balance" to verify
+    `);
+    faucets.forEach(url => window.open(url, '_blank'));
+  };
+
   return (
     <div style={styles.container}>
       <h1>Safe 2-of-3 Multisig Setup</h1>
+
+      {!usePredefinedSafe && !safeInfo && PREDEFINED_SAFE && (
+        <div style={styles.section}>
+          <h2>Quick Start Option</h2>
+          <p>Use an existing pre-deployed Safe to start testing immediately:</p>
+          <button 
+            style={{...styles.button, backgroundColor: '#9C27B0'}} 
+            onClick={() => {
+              setUsePredefinedSafe(true);
+              setShowComposer(true);
+            }}
+          >
+            Use Pre-deployed Safe ({PREDEFINED_SAFE.substring(0, 6)}...{PREDEFINED_SAFE.substring(38)})
+          </button>
+          <p style={styles.note}>Or continue below to deploy your own Safe</p>
+        </div>
+      )}
 
       <div style={styles.section}>
         <h2>Step 1: Generate 2 Local Key Pairs</h2>
@@ -174,25 +284,34 @@ const saveSafeAddressToFile = async (address) => {
           Generate Keys
         </button>
         {keyPairs && (
-          <div style={styles.keyBox}>
-            <h3>Key 1 (Save privately!)</h3>
-            <p>Address: {keyPairs.key1.address}</p>
-            <p>
-              Private Key: <code>{keyPairs.key1.privateKey}</code>
-            </p>
-            <p>
-              Mnemonic: <code>{keyPairs.key1.mnemonic}</code>
-            </p>
+          <>
+            <div style={styles.keyBox}>
+              <h3>Key 1 (Save privately!)</h3>
+              <p>Address: {keyPairs.key1.address}</p>
+              <p>Private Key: <code>{keyPairs.key1.privateKey}</code></p>
+              <p>Mnemonic: <code>{keyPairs.key1.mnemonic}</code></p>
 
-            <h3>Key 2</h3>
-            <p>Address: {keyPairs.key2.address}</p>
-            <p>
-              Private Key: <code>{keyPairs.key2.privateKey}</code>
-            </p>
-            <p>
-              Mnemonic: <code>{keyPairs.key2.mnemonic}</code>
-            </p>
-          </div>
+              <h3>Key 2</h3>
+              <p>Address: {keyPairs.key2.address}</p>
+              <p>Private Key: <code>{keyPairs.key2.privateKey}</code></p>
+              <p>Mnemonic: <code>{keyPairs.key2.mnemonic}</code></p>
+            </div>
+            
+            {!usePredefinedSafe && (
+              <div style={styles.fundingBox}>
+                <h3>Get Sepolia Test ETH</h3>
+                <p>You need some test ETH to deploy your Safe</p>
+                <div style={styles.buttonGroup}>
+                  <button style={{...styles.button, backgroundColor: '#FF9800'}} onClick={handleGetTestEth}>
+                    Get Test ETH
+                  </button>
+                  <button style={{...styles.button, backgroundColor: '#2196F3'}} onClick={checkBalance}>
+                    Check Balance
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -240,62 +359,17 @@ const saveSafeAddressToFile = async (address) => {
 }
 
 const styles = {
-  container: {
-    maxWidth: 900,
-    margin: "auto",
-    padding: 20,
-    fontFamily: "Arial, sans-serif",
-  },
-  section: {
-    marginBottom: 30,
-    padding: 20,
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    backgroundColor: "#f9f9f9",
-  },
-  button: {
-    padding: "12px 20px",
-    backgroundColor: "#4CAF50",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "pointer",
-    fontSize: 16,
-  },
-  deployButton: {
-    padding: "12px 20px",
-    backgroundColor: "#2196F3",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "pointer",
-    fontSize: 16,
-  },
-  keyBox: {
-    backgroundColor: "#fff3cd",
-    border: "2px solid #ff9800",
-    borderRadius: 4,
-    padding: 15,
-  },
-  status: {
-    padding: 10,
-    backgroundColor: "#e7f3ff",
-    color: "#0066cc",
-    borderRadius: 4,
-    marginTop: 10,
-    whiteSpace: "pre-wrap",
-  },
-  error: {
-    padding: 10,
-    backgroundColor: "#ffe7e7",
-    color: "#cc0000",
-    borderRadius: 4,
-    marginTop: 10,
-  },
-  keyInfo: {
-    backgroundColor: "#e8f5e9",
-    border: "1px solid #66bb6a",
-    borderRadius: 8,
+  container: { maxWidth: 900, margin: 'auto', padding: 20, fontFamily: 'Arial, sans-serif' },
+  section: { marginBottom: 30, padding: 20, border: '1px solid #ddd', borderRadius: 8, backgroundColor: '#f9f9f9' },
+  button: { padding: '12px 20px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 16, margin: '0 10px 10px 0' },
+  deployButton: { padding: '12px 20px', backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 16 },
+  keyBox: { backgroundColor: '#fff3cd', border: '2px solid #ff9800', borderRadius: 4, padding: 15, marginBottom: 20 },
+  status: { padding: 10, backgroundColor: '#e7f3ff', color: '#0066cc', borderRadius: 4, marginTop: 10, whiteSpace: 'pre-wrap' },
+  error: { padding: 10, backgroundColor: '#ffe7e7', color: '#cc0000', borderRadius: 4, marginTop: 10 },
+  keyInfo: { 
+    backgroundColor: '#e8f5e9', 
+    border: '1px solid #66bb6a',
+    borderRadius: 8, 
     padding: 20,
     marginTop: 15,
   },
@@ -311,4 +385,22 @@ const styles = {
     marginTop: 10,
     marginBottom: 10,
   },
+  note: {
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 10,
+    fontSize: '14px'
+  },
+  fundingBox: {
+    backgroundColor: '#e3f2fd',
+    border: '1px solid #42a5f5',
+    borderRadius: 4,
+    padding: 15,
+    marginTop: 20
+  },
+  buttonGroup: {
+    display: 'flex',
+    gap: '10px',
+    marginTop: '10px'
+  }
 };
