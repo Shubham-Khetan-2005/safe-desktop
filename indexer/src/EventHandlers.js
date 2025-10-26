@@ -15,7 +15,7 @@ SafeDeploymentFactory.SafeDeployed.handler(async ({ event, context }) => {
   // Dynamically register the new Safe contract for indexing
   context.contractRegistration.add({
     name: "Safe",        // Name as defined in config.yaml
-    abi: "./abis/Safe.json",         // ABI identifier as in your config
+    abi: "Safe.json",         // ABI identifier as in your config
     address: safeAddress,
     startBlock: startBlock,
   });
