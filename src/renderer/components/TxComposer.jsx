@@ -204,17 +204,26 @@ export default function TxComposerSDK({ onNavigate = () => {} }) {
       setSignStatus('Getting signature from Owner 1...');
       const owner1Sig = await getOwner1Signature(txData.safeTxHash);
       sigs.push(owner1Sig);
-      try {
-        const tpmSig = await getTPMSignature(txData.safeTxHash);
-        console.log('TPM Signature:', tpmSig);
-        sigs.push(tpmSig);
-        setSignStatus('✅ Using TPM signature');
-      } catch (tpmError) {
-        setSignStatus('⚠️ TPM unavailable, getting signature from Owner 2...');
+      // If we're using a predeployed Safe, prefer Owner 2 signing instead of TPM
+      if (usePredefinedSafe) {
+        setSignStatus('Using Owner 2 for signing (predeployed Safe)');
         const owner2Sig = await getOwner2Signature(txData.safeTxHash);
-        console.log('Owner 2 Signature (fallback):', owner2Sig);
+        console.log('Owner 2 Signature (predeployed):', owner2Sig);
         sigs.push(owner2Sig);
-        setSignStatus('✅ Using Owner 2 signature (TPM fallback)');
+        setSignStatus('✅ Using Owner 2 signature');
+      } else {
+        try {
+          const tpmSig = await getTPMSignature(txData.safeTxHash);
+          console.log('TPM Signature:', tpmSig);
+          sigs.push(tpmSig);
+          setSignStatus('✅ Using TPM signature');
+        } catch (tpmError) {
+          setSignStatus('⚠️ TPM unavailable, getting signature from Owner 2...');
+          const owner2Sig = await getOwner2Signature(txData.safeTxHash);
+          console.log('Owner 2 Signature (fallback):', owner2Sig);
+          sigs.push(owner2Sig);
+          setSignStatus('✅ Using Owner 2 signature (TPM fallback)');
+        }
       }
       const { ethers } = await import('ethers');
       const sigPairs = [];
